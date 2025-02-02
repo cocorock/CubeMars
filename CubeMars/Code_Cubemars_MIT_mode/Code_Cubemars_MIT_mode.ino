@@ -65,10 +65,10 @@ int float_to_uint(float x, float x_min, float x_max, unsigned int bits) {
 void pack_cmd(uint8_t *data, float p_des, float v_des, float kp, float kd, float t_ff) {
   // Define parameter ranges:
   const float P_MIN = -12.5f, P_MAX = 12.5f;
-  const float V_MIN = -50.0f, V_MAX = 50.0f;
+  const float V_MIN = -45.0f, V_MAX = 45.0f;
   const float Kp_MIN = 0.0f,   Kp_MAX = 500.0f;
   const float Kd_MIN = 0.0f,   Kd_MAX = 5.0f;
-  const float T_MIN = -45.0f,  T_MAX = 45.0f;
+  const float T_MIN = -18.0f,  T_MAX = 18.0f;
 
   // Convert floats to unsigned ints using the specified bit widths:
   int p_int  = float_to_uint(p_des, P_MIN, P_MAX, 16);  // 16 bits for position
@@ -144,23 +144,39 @@ void setup() {
 
   // Enter Motor Control Mode (this is a broadcast command)
   send_enter_motor_control_mode();
-  delay(100);
+  Serial.println("Waiting to enterd MIT mode");
+  delay(8000);
 }
 
 void loop() {
-  // Set the motor ID parameter. In this demo, we are using motor ID 104 (decimal).
-  const uint8_t motorID = 104;
+  // Use a static index variable to cycle through the positions
+  static int posIndex = 0;
+  
+  // Define the motor ID (same as before)
+  const uint8_t motorID = 1;
+  
+  // Define an array of target positions in radians:
+  // 0°, 45°, 90°, then back to 0°
+  float positions[] = {
+    0.0f,                   // 0 degrees
+    45.0f * (PI / 180.0f),    // 45 degrees in radians (~0.7854)
+    90.0f * (PI / 180.0f),    // 90 degrees in radians (~1.5708)
+    30.0f * (PI / 180.0f),    // 30 degrees in radians (~1.5708)
+  };
 
-  // Example: Send a MIT Mode motion command every second.
-  // Parameter values in this example:
-  //   Desired Position:       0.0 rad
-  //   Desired Speed:          0.0 rad/s
-  //   KP:                    10.0
-  //   KD:                      1.0
-  //   Feed-forward Torque:    0.0 N.m
-  send_mit_command(motorID, 0.0f, 0.0f, 10.0f, 1.0f, 0.0f);
-
-  // Check for any received CAN messages and print them
+  // Send an MIT mode motion command using the current target position.
+  // In this example, desired speed is 0.0 rad/s, KP=10, KD=1, and feed-forward torque=0.
+  send_mit_command(motorID, positions[posIndex], 0.0f, 15.0f, 1.0f, 0.0f);
+  
+  // Optionally print the target position in degrees
+  Serial.print("Moving to position: ");
+  Serial.print(positions[posIndex] * (180.0f / PI)); // converting radians to degrees for printing
+  Serial.println(" degrees");
+  
+  // Increment the index, wrapping back to 0 when reaching the end of the array.
+  posIndex = (posIndex + 1) % 4;
+  
+  // Check for any incoming CAN messages (same as before) and print them out.
   if (CAN0.checkReceive() == CAN_MSGAVAIL) {
     uint8_t len = 0;
     uint8_t buf[8];
@@ -178,5 +194,6 @@ void loop() {
     }
   }
   
-  delay(5000);  // Wait one second between commands
+  // Wait 1 seconds between commands
+  delay(1000);
 }
