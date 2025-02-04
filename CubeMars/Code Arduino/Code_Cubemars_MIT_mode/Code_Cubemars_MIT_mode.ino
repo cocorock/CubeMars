@@ -21,7 +21,7 @@
 #include <SPI.h>
 #include "mcp_can.h"
 
-// Define MCP2515 pins (adjust as needed)
+// Define MCP2515 pins 
 #define MCP2515_CS   5    // Chip Select pin for MCP2515
 #define MCP2515_INT  17   // Interrupt pin from MCP2515
 
