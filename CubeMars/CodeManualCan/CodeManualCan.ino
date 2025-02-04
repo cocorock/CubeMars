@@ -162,9 +162,10 @@ void loop() {
     return;  // Skip sending, restart loop.
   }
   
-  // 4. Send the CAN frame.
+  // 4. Send the CAN frame. <<======================
   byte sendStatus = CAN0.sendMsgBuf(canId, 0, 8, data);
-  
+  //  delay(20);
+
   // Print acknowledgment based on send status.
   bool acked = false;
   if (sendStatus == CAN_OK) {
