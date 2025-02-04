@@ -53,7 +53,7 @@ const float MAX_PWM = 10000.0f;
 const float MAX_CURRENT = 60000.0f;
 const float MAX_VELOCITY = 10000.0f;
 const float MAX_POSITION = 360000.0f;
-const float MAX_POSITION_VELOCITY = 32767.0f;
+const float MAX_POSITION_VELOCITY = 3276700.0f;
 const float MIN_POSITION_VELOCITY = -32768.0f;
 const float MAX_ACCELERATION = 40000.0f;
 
@@ -150,23 +150,48 @@ void comm_can_set_pos_spd(uint8_t controller_id, float pos, int16_t spd, int16_t
   comm_can_transmit_eid(canId(controller_id, AKMode::AK_POSITION_VELOCITY), buffer, send_index);
 }
 
-void motor_receive(float* motor_pos, float* motor_spd, float* motor_cur, int8_t* motor_temp, int8_t* motor_error, uint8_t* rx_message) {
-  byte len = 0;
-  byte buf[8];
-  unsigned long canId;
-  
-  if(CAN_MSGAVAIL == CAN.checkReceive()) {
-    CAN.readMsgBuf(&canId, &len, buf);    // Read data according to coryjfowler library
+void printMotorData(float pos, float spd, float cur, int8_t temp, int8_t error) {
+    Serial.print("Pos: ");
+    Serial.print(pos, 2);  // 2 decimal places
+    Serial.print("°,");
     
-    int16_t pos_int = buf[0] << 8 | buf[1];
-    int16_t spd_int = buf[2] << 8 | buf[3];
-    int16_t cur_int = buf[4] << 8 | buf[5];
-    *motor_pos = (float)(pos_int * 0.1f);
-    *motor_spd = (float)(spd_int * 10.0f);
-    *motor_cur = (float)(cur_int * 0.01f);
-    *motor_temp = buf[6];
-    *motor_error = buf[7];
-  }
+    Serial.print(" Spd: ");
+    Serial.print(spd, 2);
+    Serial.print(" RPM,");
+    
+    Serial.print(" I: ");
+    Serial.print(cur, 2);
+    Serial.print(" A,");
+    
+    Serial.print(" Temp: ");
+    Serial.print(temp);
+    Serial.print("°C,");
+    
+    Serial.print(" Error: ");
+    Serial.print(error);
+    Serial.println(",");
+}
+
+void motor_receive(float* motor_pos, float* motor_spd, float* motor_cur, int8_t* motor_temp, int8_t* motor_error, uint8_t* rx_message) {
+    byte len = 0;
+    byte buf[8];
+    unsigned long canId;
+    
+    if(CAN_MSGAVAIL == CAN.checkReceive()) {
+        CAN.readMsgBuf(&canId, &len, buf);    // Read data according to coryjfowler library
+        
+        int16_t pos_int = buf[0] << 8 | buf[1];
+        int16_t spd_int = buf[2] << 8 | buf[3];
+        int16_t cur_int = buf[4] << 8 | buf[5];
+        *motor_pos = (float)(pos_int * 0.1f);
+        *motor_spd = (float)(spd_int * 10.0f);
+        *motor_cur = (float)(cur_int * 0.01f);
+        *motor_temp = buf[6];
+        *motor_error = buf[7];
+        
+        // Print the received data in a nice format
+        printMotorData(*motor_pos, *motor_spd, *motor_cur, *motor_temp, *motor_error);
+    }
 }
 
 void setup() {
@@ -182,23 +207,47 @@ void setup() {
     delay(100);
   }
   Serial.println("CAN init ok!");
+
+  // Enable One-Shot Transmission mode
+  if (CAN.enOneShotTX() == CAN_OK) {
+    Serial.println("One-Shot Transmission Enabled!");
+  } else {
+    Serial.println("Failed to Enable One-Shot Transmission...");
+  }
+  // Set the MCP2515 to normal mode to allow sending and receiving.
+  CAN.setMode(MCP_NORMAL);
+  delay(100);
 }
 
 float rpm = 0.0;
 
 void loop() {
-  if (Serial.available()) {
-    char rc = Serial.read();
-    Serial.println(rc);
+    float motor_pos, motor_spd, motor_cur;
+    int8_t motor_temp, motor_error;
+    uint8_t rx_message[8];
 
-    if (rc == 'x') {
-      rpm += 1500.0;
-      Serial.println("RPM increased");
-    } else if (rc == 's') {
-      rpm -= 1500.0;
-      Serial.println("RPM decreased");
+    if (Serial.available()) {
+        char rc = Serial.read();
+        Serial.println("\nCommand received: ");
+        Serial.println(rc);
+
+        if (rc == 'x') {
+            rpm += 1500.0;
+            Serial.println("RPM increased to: ");
+            Serial.println(rpm);
+        } else if (rc == 's') {
+            rpm -= 1500.0;
+            Serial.println("RPM decreased to: ");
+            Serial.println(rpm);
+        }
+        delay(100);
     }
-    delay(100);
-  }
-  comm_can_set_rpm(0x01, rpm);
+    
+    // Send command to motor
+    comm_can_set_rpm(0xA, rpm);
+    
+    // Read and display motor data
+    motor_receive(&motor_pos, &motor_spd, &motor_cur, &motor_temp, &motor_error, rx_message);
+    
+    delay(100);  // Add a small delay to prevent flooding the serial monitor
 }

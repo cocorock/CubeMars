@@ -137,7 +137,8 @@ void setup() {
     Serial.println("Error Initializing MCP2515...");
     while (1);
   }
-  
+  pinMode(MCP2515_INT, INPUT);  // Setting interrupt pin as input
+
   // Set the MCP2515 to normal mode to allow sending and receiving.
   CAN0.setMode(MCP_NORMAL);
   delay(100);
@@ -145,7 +146,6 @@ void setup() {
   // Enter Motor Control Mode (this is a broadcast command)
   send_enter_motor_control_mode();
   Serial.println("Waiting to enterd MIT mode");
-  delay(8000);
 }
 
 void loop() {

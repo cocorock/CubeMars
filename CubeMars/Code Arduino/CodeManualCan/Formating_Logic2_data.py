@@ -97,5 +97,5 @@ def clean_can_data(input_filename):
     return clean_df
 
 # Example usage:
-input_file = "C.csv"  # Change the file name as needed.
+input_file = "MIT mode.csv"  # Change the file name as needed.
 cleaned_data = clean_can_data(input_file)

@@ -7,7 +7,7 @@ Serial TERMINAL USAGE INSTRUCTIONS:
   mode, you should calibrate on application function via R-link, if you
   don’t, can bus cannot work.
 
-1. Connect to the Arduino through serial terminal at 115200 baud rate
+1. Connect to the Arduino through serial terminal at 115200 baud rate.
 
 2. Available Commands:
    - 'u': Increase velocity by 3.0 units
@@ -76,16 +76,27 @@ MCP_CAN CAN(MCP2515_CS);  // Set CS pin
 
 void setup() {
     Serial.begin(115200);
-    while (!Serial) {};
-    
-    // Initialize MCP2515 with new parameters
-    while (CAN_OK != CAN.begin(MCP_STDEXT, CAN_500KBPS, MCP_8MHZ)) {
-        Serial.println("CAN BUS Shield init fail");
-        Serial.println("Init CAN BUS Shield again");
-        delay(100);
+    while (!Serial) {}  // Wait for Serial monitor to open
+    Serial.println("Cubemars AK80-64 MIT Mode Demo (Updated)");
+
+    // Initialize MCP2515 with 500 kbps speed (assuming an 8MHz oscillator)
+    if (CAN.begin(MCP_STDEXT, CAN_500KBPS, MCP_8MHZ) == CAN_OK) {
+      Serial.println("MCP2515 Initialized Successfully!");
+    } else {
+      Serial.println("Error Initializing MCP2515...");
+      while (1);
     }
-    
     pinMode(MCP2515_INT, INPUT);  // Setting interrupt pin as input
+
+    // Enable One-Shot Transmission mode
+    if (CAN.enOneShotTX() == CAN_OK) {
+      Serial.println("One-Shot Transmission Enabled!");
+    } else {
+      Serial.println("Failed to Enable One-Shot Transmission...");
+    }
+    // Set the MCP2515 to normal mode to allow sending and receiving.
+    CAN.setMode(MCP_NORMAL);
+    delay(100);
     
     Zero();
     EnterMode();
