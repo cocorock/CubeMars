@@ -209,12 +209,12 @@ void setup() {
   Serial.println("CAN init ok!");
 
   // Enable One-Shot Transmission mode
-  if (CAN.enOneShotTX() == CAN_OK) {
-    Serial.println("One-Shot Transmission Enabled!");
-  } else {
-    Serial.println("Failed to Enable One-Shot Transmission...");
-  }
-  // Set the MCP2515 to normal mode to allow sending and receiving.
+  // if (CAN.enOneShotTX() == CAN_OK) {
+  //   Serial.println("One-Shot Transmission Enabled!");
+  // } else {
+  //   Serial.println("Failed to Enable One-Shot Transmission...");
+  // }
+  // // Set the MCP2515 to normal mode to allow sending and receiving.
   CAN.setMode(MCP_NORMAL);
   delay(100);
 }
