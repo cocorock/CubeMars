@@ -54,7 +54,7 @@ const float MAX_CURRENT = 60000.0f;
 const float MAX_VELOCITY = 10000.0f;
 const float MAX_POSITION = 360000.0f;
 const float MAX_POSITION_VELOCITY = 3276700.0f;
-const float MIN_POSITION_VELOCITY = -32768.0f;
+const float MIN_POSITION_VELOCITY = -327680.0f;
 const float MAX_ACCELERATION = 40000.0f;
 
 enum AKMode {
@@ -172,6 +172,19 @@ void printMotorData(float pos, float spd, float cur, int8_t temp, int8_t error) 
     Serial.println(",");
 }
 
+void printMotorDataArduinoF(float pos, float spd, float cur, int8_t temp, int8_t error) {
+    // Format: position,speed,current,temperature,error
+    Serial.print(pos);
+    Serial.print(",");
+    Serial.print(spd);
+    Serial.print(",");
+    Serial.print(cur);
+    Serial.print(",");
+    Serial.print(temp);
+    Serial.print(",");
+    Serial.println(error);
+}
+
 void motor_receive(float* motor_pos, float* motor_spd, float* motor_cur, int8_t* motor_temp, int8_t* motor_error, uint8_t* rx_message) {
     byte len = 0;
     byte buf[8];
@@ -190,7 +203,7 @@ void motor_receive(float* motor_pos, float* motor_spd, float* motor_cur, int8_t*
         *motor_error = buf[7];
         
         // Print the received data in a nice format
-        printMotorData(*motor_pos, *motor_spd, *motor_cur, *motor_temp, *motor_error);
+        printMotorDataArduinoF(*motor_pos, *motor_spd, *motor_cur, *motor_temp, *motor_error);
     }
 }
 
@@ -201,7 +214,7 @@ void setup() {
   pinMode(MCP2515_INT, INPUT);  // Setting interrupt pin as input
   
   // Initialize MCP2515 with new parameters
-  while (CAN_OK != CAN.begin(MCP_STDEXT, CAN_500KBPS, MCP_8MHZ)) {
+  while (CAN_OK != CAN.begin(MCP_STDEXT, CAN_1000KBPS, MCP_16MHZ)) {
     Serial.println("CAN BUS Shield init fail");
     Serial.println("Init CAN BUS Shield again");
     delay(100);
@@ -214,7 +227,8 @@ void setup() {
   // } else {
   //   Serial.println("Failed to Enable One-Shot Transmission...");
   // }
-  // // Set the MCP2515 to normal mode to allow sending and receiving.
+  
+  // Set the MCP2515 to normal mode to allow sending and receiving.
   CAN.setMode(MCP_NORMAL);
   delay(100);
 }
@@ -231,7 +245,8 @@ void loop() {
         Serial.println("\nCommand received: ");
         Serial.println(rc);
 
-        if (rc == 'x') {
+        if (rc == 'x') {x
+        
             rpm += 1500.0;
             Serial.println("RPM increased to: ");
             Serial.println(rpm);
