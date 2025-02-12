@@ -231,6 +231,7 @@ void setup() {
   // Set the MCP2515 to normal mode to allow sending and receiving.
   CAN.setMode(MCP_NORMAL);
   delay(100);
+
 }
 
 float rpm = 0.0;
@@ -245,7 +246,7 @@ void loop() {
         Serial.println("\nCommand received: ");
         Serial.println(rc);
 
-        if (rc == 'x') {x
+        if (rc == 'x') {
         
             rpm += 1500.0;
             Serial.println("RPM increased to: ");

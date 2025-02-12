@@ -44,6 +44,7 @@ control the motor.
 #include <SPI.h>
 #include <mcp_can.h>
 
+#define CONTROLLER_ID 23 //0X17
 #define MCP2515_CS   5    // Chip Select pin for MCP2515
 #define MCP2515_INT  17   // Interrupt pin from MCP2515
 
@@ -72,6 +73,7 @@ float p_out = 0.0f;  // actual position
 float v_out = 0.0f;  // actual velocity
 float t_out = 0.0f;  // actual torque
 
+
 MCP_CAN CAN(MCP2515_CS);  // Set CS pin
 
 void setup() {
@@ -80,7 +82,7 @@ void setup() {
     Serial.println("Cubemars AK80-64 MIT Mode Demo (Updated)");
 
     // Initialize MCP2515 with 500 kbps speed (assuming an 8MHz oscillator)
-    if (CAN.begin(MCP_STDEXT, CAN_500KBPS, MCP_8MHZ) == CAN_OK) {
+    if (CAN.begin(MCP_STDEXT, CAN_1000KBPS, MCP_16MHZ) == CAN_OK) {
       Serial.println("MCP2515 Initialized Successfully!");
     } else {
       Serial.println("Error Initializing MCP2515...");
@@ -105,11 +107,15 @@ void setup() {
 
 void loop() {
     char rc;
-    rc = Serial.read();
-    Serial.println(rc);
-    delay(500);
-
     float p_step = 0.1;
+    rc = Serial.read();
+    
+    // Only print the received character if it's a valid command
+    if(rc == 'u' || rc == 'd' || rc == 's' || rc == 'e') {
+        Serial.println(rc);
+    }
+    
+    delay(100);
     
     if(rc == 'u')
         v_in = v_in + 3.0;
@@ -131,32 +137,31 @@ void loop() {
     //receive CAN
     if(CAN_MSGAVAIL == CAN.checkReceive()) {
         unpack_reply();
+        //print data
+        Serial.print(" ");
+        Serial.print(p_in);
+        Serial.print(" ");
+        Serial.print(p_out);
+        Serial.print(" ");
+        Serial.print(v_out);
+        Serial.print(" ");
+        Serial.println(t_out);
     }
-    
-    //print data
-    Serial.print(" ");
-    Serial.print(p_in);
-    Serial.print(" ");
-    Serial.print(p_out);
-    Serial.print(" ");
-    Serial.print(v_out);
-    Serial.print(" ");
-    Serial.println(t_out);
 }
 
 void EnterMode() {
     byte buf[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC};
-    CAN.sendMsgBuf(0x01, 0, 8, buf);
+    CAN.sendMsgBuf(CONTROLLER_ID, 0, 8, buf);
 }
 
 void ExitMode() {
     byte buf[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD};
-    CAN.sendMsgBuf(0x01, 0, 8, buf);
+    CAN.sendMsgBuf(CONTROLLER_ID, 0, 8, buf);
 }
 
 void Zero() {
     byte buf[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE};
-    CAN.sendMsgBuf(0x01, 0, 8, buf);
+    CAN.sendMsgBuf(CONTROLLER_ID, 0, 8, buf);
 }
 
 unsigned int float_to_uint(float x, float x_min, float x_max, int bits) {
@@ -208,7 +213,7 @@ void pack_cmd() {
     buf[6] = ((kd_int & 0xF) << 4) | (t_int >> 8);
     buf[7] = t_int & 0xFF;
     
-    CAN.sendMsgBuf(0x01, 0, 8, buf);
+    CAN.sendMsgBuf(CONTROLLER_ID, 0, 8, buf);
 }
 
 void unpack_reply() {
