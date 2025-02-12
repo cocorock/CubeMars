@@ -7,9 +7,9 @@ import sys
 # ------------------------------
 
 # CAN interface configuration
-CAN_CHANNEL = "COM7"  # Replace with your actual COM port
-CAN_BITRATE = 500000  # Changed to 500 kbps - more common CAN speed
-TIMEOUT = 0.1  # Added timeout for CAN operations
+CAN_CHANNEL = "COM10"  # Replace with your actual COM port
+CAN_BITRATE = 921600  # Changed to 500 kbps - more common CAN speed
+TIMEOUT = 0.5  # Added timeout for CAN operations
 
 # Motor control constants:
 RPM_STEP = 1500

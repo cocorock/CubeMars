@@ -7,8 +7,9 @@ import sys
 # ------------------------------
 
 # CAN interface configuration
-CAN_CHANNEL = "COM7"  # Replace with the COM port of your CH340 adapter
-CAN_BITRATE = 500000   # Set the CAN bus bitrate (e.g., 500 kbps)
+CAN_CHANNEL = "COM10"  # Replace with your actual COM port
+CAN_BITRATE = 500000  # Changed to 500 kbps - more common CAN speed
+TIMEOUT = 0.5  # Added timeout for CAN operations
 
 # Motor control constants:
 RPM_STEP = 1500
@@ -36,20 +37,33 @@ def can_id(controller_id: int, mode: int) -> int:
 
 def send_can_frame(bus: can.Bus, can_id_val: int, data: bytes):
     """
-    Sends a CAN frame using the python-can library.
+    Sends a CAN frame using the python-can library with improved error handling
     """
-    # Create a CAN message
+    # Ensure data length is correct (8 bytes for most CAN frames)
+    if len(data) < 8:
+        data = data.ljust(8, b'\x00')  # Pad with zeros if needed
+
+    # Create a CAN message with explicit formatting
     message = can.Message(
         arbitration_id=can_id_val,
         data=data,
-        is_extended_id=True  # Assuming extended 29-bit CAN IDs
+        is_extended_id=True,
+        dlc=8,  # Explicit data length
+        is_remote_frame=False
     )
-    try:
-        # Send the message on the CAN bus
-        bus.send(message)
-        print(f"Sent packet: CAN ID=0x{can_id_val:03X}, Data={data.hex()}")
-    except can.CanError as e:
-        print(f"Failed to send CAN message: {e}")
+
+    retry_count = 3
+    while retry_count > 0:
+        try:
+            bus.send(message)
+            print(f"Sent packet: CAN ID=0x{can_id_val:03X}, Data={data.hex()}")
+            return True
+        except can.CanError as e:
+            print(f"Failed to send CAN message: {e}")
+            retry_count -= 1
+            if retry_count > 0:
+                print(f"Retrying... ({retry_count} attempts left)")
+    return False
 
 def comm_can_set_rpm(bus: can.Bus, controller_id: int, rpm: float):
     """
@@ -136,6 +150,35 @@ def print_motor_response(bus):
     except can.CanError as e:
         print(f"CAN error: {e}")
 
+def check_can_connection(bus):
+    """
+    Test CAN connection by sending a test message and listening for any response
+    """
+    print("Testing CAN connection...")
+
+    # Send a test message
+    test_id = can_id(CONTROLLER_ID, AK_VELOCITY)
+    test_data = struct.pack('>i', 0)  # Send 0 RPM command
+
+    if send_can_frame(bus, test_id, test_data):
+        print("Test message sent successfully")
+
+        # Try to receive any response
+        try:
+            message = bus.recv(timeout=1.0)
+            if message is not None:
+                print("Received response:", message)
+                return True
+            else:
+                print("No response received")
+                return False
+        except can.CanError as e:
+            print(f"Error receiving response: {e}")
+            return False
+    else:
+        print("Failed to send test message")
+        return False
+
 def interpret_error_code(error_code):
     """
     Interprets the error code based on the manual.
@@ -160,21 +203,36 @@ def interpret_error_code(error_code):
 
 def main():
     try:
-        # Initialize the CAN bus using the slcan backend
-        bus = can.interface.Bus(
-            bustype="slcan",
+        print("serial interface")
+        # Try with serial backend first
+        bus = can.interface(
+            bustype="serial",  # Changed from slcan to serial
             channel=CAN_CHANNEL,
-            bitrate=CAN_BITRATE
+            bitrate=CAN_BITRATE,
+            timeout=TIMEOUT
         )
-        print(f"Connected to CAN channel {CAN_CHANNEL} at {CAN_BITRATE} bps.")
-    except can.CanError as e:
-        print(f"Error initializing CAN interface: {e}")
-        sys.exit(1)
+    except:
+        try:
+            print("slcan interface")
+            # Fallback to slcan if serial fails
+            bus = can.interface(
+                bustype="slcan",
+                channel=CAN_CHANNEL,
+                bitrate=CAN_BITRATE,
+                timeout=TIMEOUT
+            )
+        except:
+            print("Failed to initialize CAN interface")
+            sys.exit(1)
 
     rpm = 0.0
     print("\nMotor RPM Control")
     print("Type 'x' to increase RPM, 's' to decrease RPM, or 'q' to quit.")
 
+    # if not check_can_connection(bus):
+        # print("CAN communication test failed")
+        # sys.exit(1)
+        
     try:
         while True:
             user_input = input("Enter command: ").strip().lower()
