@@ -105,48 +105,114 @@ void setup() {
     Serial.println("CAN BUS Shield init ok!");
 }
 
-void loop() {
-    char rc;
-    float p_step = 0.1;
-    rc = Serial.read();
+// Add these new helper functions
+void printMenu() {
+    Serial.println("\n=== CubeMars AK80-64 Control Menu ===");
+    Serial.println("1. Enter MIT Mode");
+    Serial.println("2. Exit MIT Mode");
+    Serial.println("3. Send Control Command");
+    Serial.println("4. Read Status");
+    Serial.println("Please enter your choice (1-4):");
+}
+
+float readFloatFromSerial(const char* paramName, float minVal, float maxVal) {
+    float value;
+    Serial.print("Enter ");
+    Serial.print(paramName);
+    Serial.print(" (");
+    Serial.print(minVal);
+    Serial.print(" to ");
+    Serial.print(maxVal);
+    Serial.print("): ");
     
-    // Only print the received character if it's a valid command
-    if(rc == 'u' || rc == 'd' || rc == 's' || rc == 'e') {
-        Serial.println(rc);
+    while (!Serial.available()) {
+        delay(100);
+    }
+    
+    value = Serial.parseFloat();
+    Serial.println(value);  // Echo the input
+    return constrain(value, minVal, maxVal);
+}
+
+void sendStatusCommand() {
+    // Store original values
+    float orig_kp = kp_in;
+    float orig_kd = kd_in;
+    float orig_t = t_in;
+    
+    // Zero out control parameters
+    kp_in = 0.0f;
+    kd_in = 0.0f;
+    t_in = 0.0f;
+    
+    // Send command
+    pack_cmd();
+    
+    // Restore original values
+    kp_in = orig_kp;
+    kd_in = orig_kd;
+    t_in = orig_t;
+}
+
+// Replace the existing loop() function with this new one
+void loop() {
+    printMenu();
+    
+    while (!Serial.available()) {
+        delay(100);
+    }
+    
+    char choice = Serial.read();
+    Serial.println(choice);  // Echo the choice
+    
+    switch (choice) {
+        case '1':
+            Serial.println("Entering MIT Mode...");
+            EnterMode();
+            break;
+            
+        case '2':
+            Serial.println("Exiting MIT Mode...");
+            ExitMode();
+            break;
+            
+        case '3':
+            Serial.println("\nEntering Control Command Parameters:");
+            p_in = readFloatFromSerial("position", P_MIN, P_MAX);
+            v_in = readFloatFromSerial("velocity", V_MIN, V_MAX);
+            kp_in = readFloatFromSerial("kp", KP_MIN, KP_MAX);
+            kd_in = readFloatFromSerial("kd", KD_MIN, KD_MAX);
+            t_in = readFloatFromSerial("torque", T_MIN, T_MAX);
+            
+            Serial.println("Sending command...");
+            pack_cmd();
+            break;
+            
+        case '4':
+            Serial.println("Reading status...");
+            sendStatusCommand();
+            break;
+            
+        default:
+            Serial.println("Invalid choice! Please select 1-4");
+            break;
+    }
+    
+    // Read and display motor response
+    if(CAN_MSGAVAIL == CAN.checkReceive()) {
+        unpack_reply();
+        Serial.println("\nMotor Status:");
+        Serial.print("Position: "); Serial.println(p_out);
+        Serial.print("Velocity: "); Serial.println(v_out);
+        Serial.print("Torque: "); Serial.println(t_out);
+    }
+    
+    // Clear any remaining characters in the serial buffer
+    while(Serial.available()) {
+        Serial.read();
     }
     
     delay(100);
-    
-    if(rc == 'u')
-        v_in = v_in + 3.0;
-
-    if(rc == 'd')
-        v_in = v_in - 3.0;
-
-    p_in = constrain(p_in, P_MIN, P_MAX);
-
-    if(rc == 's')
-        EnterMode();
-
-    if(rc == 'e')
-        ExitMode();
-
-    //send CAN
-    pack_cmd();
-
-    //receive CAN
-    if(CAN_MSGAVAIL == CAN.checkReceive()) {
-        unpack_reply();
-        //print data
-        Serial.print(" ");
-        Serial.print(p_in);
-        Serial.print(" ");
-        Serial.print(p_out);
-        Serial.print(" ");
-        Serial.print(v_out);
-        Serial.print(" ");
-        Serial.println(t_out);
-    }
 }
 
 void EnterMode() {

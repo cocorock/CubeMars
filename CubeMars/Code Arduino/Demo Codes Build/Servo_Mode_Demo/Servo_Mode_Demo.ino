@@ -67,6 +67,17 @@ enum AKMode {
   AK_POSITION_VELOCITY,
 };
 
+const int NUM_MODES = 7;
+const String MENU_OPTIONS[] = {
+  "Set PWM Duty",
+  "Set Current",
+  "Set Current Brake",
+  "Set RPM (Velocity)",
+  "Set Position",
+  "Set Origin",
+  "Set Position with Speed"
+};
+
 uint32_t canId(int id, AKMode Mode_set) {
   uint32_t mode;
   mode = Mode_set;
@@ -234,7 +245,81 @@ void setup() {
 
 }
 
-float rpm = 0.0;
+
+void printMenu() {
+    Serial.println("\n=== Motor Control Menu ===");
+    for (int i = 0; i < NUM_MODES; i++) {
+        Serial.print(i + 1);
+        Serial.print(". ");
+        Serial.println(MENU_OPTIONS[i]);
+    }
+    Serial.println("Enter your choice (1-7):");
+}
+
+float getFloatInput(const char* prompt) {
+    Serial.println(prompt);
+    while (!Serial.available()) {}
+    return Serial.parseFloat();
+}
+
+int getIntInput(const char* prompt) {
+    Serial.println(prompt);
+    while (!Serial.available()) {}
+    return Serial.parseInt();
+}
+
+
+void handleMenuChoice(int choice) {
+    // Declare all variables at the beginning of the function
+    float value = 0;
+    float pos = 0;
+    int16_t spd = 0;
+    int16_t rpa = 0;
+    int intValue = 0;
+    
+    switch(choice) {
+        case 1: // PWM Duty
+            value = getFloatInput("Enter PWM duty cycle (-1.0 to 1.0):");
+            comm_can_set_duty(0xA, value);
+            break;
+        
+        case 2: // Current
+            value = getFloatInput("Enter current in Amps:");
+            comm_can_set_current(0xA, value);
+            break;
+        
+        case 3: // Current Brake
+            value = getFloatInput("Enter brake current in Amps:");
+            comm_can_set_cb(0xA, value);
+            break;
+        
+        case 4: // RPM
+            value = getFloatInput("Enter RPM:");
+            comm_can_set_rpm(0xA, value);
+            break;
+        
+        case 5: // Position
+            value = getFloatInput("Enter position in degrees:");
+            comm_can_set_pos(0xA, value);
+            break;
+        
+        case 6: // Origin
+            intValue = getIntInput("Enter origin mode (0/1):");
+            comm_can_set_origin(0xA, intValue);
+            break;
+        
+        case 7: // Position with Speed
+            pos = getFloatInput("Enter position in degrees:");
+            spd = getIntInput("Enter speed:");
+            rpa = getIntInput("Enter RPA:");
+            comm_can_set_pos_spd(0xA, pos, spd, rpa);
+            break;
+        
+        default:
+            Serial.println("Invalid choice!");
+            break;
+    }
+}
 
 void loop() {
     float motor_pos, motor_spd, motor_cur;
@@ -242,28 +327,13 @@ void loop() {
     uint8_t rx_message[8];
 
     if (Serial.available()) {
-        char rc = Serial.read();
-        Serial.println("\nCommand received: ");
-        Serial.println(rc);
-
-        if (rc == 'x') {
-        
-            rpm += 1500.0;
-            Serial.println("RPM increased to: ");
-            Serial.println(rpm);
-        } else if (rc == 's') {
-            rpm -= 1500.0;
-            Serial.println("RPM decreased to: ");
-            Serial.println(rpm);
-        }
+        printMenu();
+        int choice = getIntInput("");
+        handleMenuChoice(choice);
         delay(100);
     }
     
-    // Send command to motor
-    comm_can_set_rpm(0xA, rpm);
-    
     // Read and display motor data
     motor_receive(&motor_pos, &motor_spd, &motor_cur, &motor_temp, &motor_error, rx_message);
-    
-    delay(100);  // Add a small delay to prevent flooding the serial monitor
+    delay(100);
 }
