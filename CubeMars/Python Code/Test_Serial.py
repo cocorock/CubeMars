@@ -50,7 +50,8 @@ class AKServoMotor:
             packet.extend(cmd_data)
             packet.extend(struct.pack('>H', crc))
             packet.append(0x03)
-
+            # print(f"Sent command: {packet}")
+            
             self.serial.write(packet)
             time.sleep(0.01)  # Wait for response
 
@@ -74,16 +75,19 @@ class AKServoMotor:
 
                 byte = self.serial.read(1)
                 if byte == b'\x02':
+                    # print(f"read_response: \nbyte: {hex(ord(byte))}") 
                     break
 
             # Read length
             length = self.serial.read(1)
+            # print(f"length: {hex(ord(length))}") 
             if not length:
                 return None
             data_length = length[0]
 
             # Read data
             data = self.serial.read(data_length)
+            # print(f"data: {data.hex()}") 
             if len(data) != data_length:
                 return None
 
@@ -105,8 +109,29 @@ class AKServoMotor:
         try:
             if len(data) < 40:  # Minimum length check
                 raise ValueError(f"Response data too short: {len(data)} bytes")
+            # Debbuging ...
+            # print(f"Raw data length: {len(data)}")
+            # print(f"Raw data: {data.hex()}")
+            
+            index = 1
+            # Debbuging ...
+            # print(f"MOS temp raw: {data[index:index+2].hex()} | decimal: {struct.unpack('>h', data[index:index+2])[0] / 10.0}")
+            # print(f"Motor temp raw: {data[index+2:index+4].hex()} | decimal: {struct.unpack('>h', data[index+2:index+4])[0] / 10.0}")
+            # print(f"Current out raw: {data[index+4:index+8].hex()} | decimal: {struct.unpack('>i', data[index+4:index+8])[0] / 100.0}")
+            # print(f"Current in raw: {data[index+8:index+12].hex()} | decimal: {struct.unpack('>i', data[index+8:index+12])[0] / 100.0}")
+            # print(f"Id current raw: {data[index+12:index+16].hex()} | decimal: {struct.unpack('>i', data[index+12:index+16])[0] / 100.0}")
+            # print(f"Iq current raw: {data[index+16:index+20].hex()} | decimal: {struct.unpack('>i', data[index+16:index+20])[0] / 100.0}")
+            # print(f"Throttle raw: {data[index+20:index+22].hex()} | decimal: {struct.unpack('>h', data[index+20:index+22])[0] / 1000.0}")
+            # print(f"Speed raw: {data[index+22:index+26].hex()} | decimal: {struct.unpack('>i', data[index+22:index+26])[0]}")
+            # print(f"Voltage in raw: {data[index+26:index+28].hex()} | decimal: {struct.unpack('>h', data[index+26:index+28])[0] / 10.0}")
+            # print(f"Reserved raw: {data[index+28:index+52].hex()}")
+            # print(f"Motor status raw: {data[index+52:index+53].hex()} | decimal: {struct.unpack('>B', data[index+52:index+53])[0]}")
+            # print(f"Position raw: {data[index+53:index+57].hex()} | decimal: {struct.unpack('>i', data[index+53:index+57])[0] / 1000000.0}")
+            # print(f"Motor ID raw: {data[index+57:index+58].hex()} | decimal: {struct.unpack('>B', data[index+57:index+58])[0]}")
+            # print(f"Reserved temp raw: {data[index+58:index+64].hex()}")  # Removed unpack as 6 bytes doesn't match standard sizes
+            # print(f"Vd voltage raw: {data[index+64:index+68].hex()} | decimal: {struct.unpack('>i', data[index+64:index+68])[0] / 1000.0}")
+            # print(f"Vq voltage raw: {data[index+68:index+72].hex()} | decimal: {struct.unpack('>i', data[index+68:index+72])[0] / 1000.0}")
 
-            index = 0
             status = {
                 'mos_temp': struct.unpack('>h', data[index:index+2])[0] / 10.0,
                 'motor_temp': struct.unpack('>h', data[index+2:index+4])[0] / 10.0,
@@ -114,12 +139,20 @@ class AKServoMotor:
                 'current_in': struct.unpack('>i', data[index+8:index+12])[0] / 100.0,
                 'id_current': struct.unpack('>i', data[index+12:index+16])[0] / 100.0,
                 'iq_current': struct.unpack('>i', data[index+16:index+20])[0] / 100.0,
-                'speed': struct.unpack('>i', data[index+24:index+28])[0],
-                'position': struct.unpack('>i', data[index+36:index+40])[0] / 10000.0
+                'throttle': struct.unpack('>h', data[index+20:index+22])[0] / 1000.0,
+                'speed': struct.unpack('>i', data[index+22:index+26])[0],
+                'voltage_in': struct.unpack('>h', data[index+26:index+28])[0] / 10.0,
+                'motor_status': struct.unpack('>B', data[index+52:index+53])[0],
+                'position': struct.unpack('>i', data[index+53:index+57])[0]/1000000.0,
+                'motor_id': struct.unpack('>B', data[index+57:index+58])[0],
+                'reserved_temp': data[index+58:index+64].hex(),  # Keep as hex string since it's 6 bytes
+                'vd_voltage': struct.unpack('>i', data[index+64:index+68])[0] / 1000.0,
+                'vq_voltage': struct.unpack('>i', data[index+68:index+72])[0] / 1000.0,
             }
+            # print(f"status frame: {status}")
             return status
         except Exception as e:
-            print(f"Error parsing status response: {e}")
+            print(f"\tError parsing status response: {e}")
             print(f"Raw data length: {len(data)}")
             print(f"Raw data: {data.hex()}")
             return None
@@ -172,46 +205,253 @@ class AKServoMotor:
         if self.serial.is_open:
             self.serial.close()
 
+    def send_duty_cycle_command(self, duty_cycle):
+        """Send duty cycle command to the motor.
+        Args:
+            duty_cycle (float): Duty cycle value (-1.0 to 1.0)
+        """
+        # Convert duty cycle to int32 (duty_cycle * 10000)
+        duty_int = int(duty_cycle * 10000)
+
+        # Create command data
+        cmd_data = bytearray([0x05])  # Duty cycle command ID
+        cmd_data.extend(struct.pack('>i', duty_int))  # Duty cycle data (4 bytes, big-endian)
+
+        # Calculate packet length and CRC
+        length = len(cmd_data)
+        crc = self.crc16(cmd_data)
+
+        # Build complete packet
+        packet = bytearray([0x02])  # Frame head
+        packet.append(length)  # Data length
+        packet.extend(cmd_data)  # Command data
+        packet.extend(struct.pack('>H', crc))  # CRC (2 bytes)
+        packet.append(0x03)  # Frame tail
+
+        # Send packet
+        self.serial.write(packet)
+        time.sleep(0.01)  # Small delay to ensure command is sent
+
+    def send_current_command(self, current):
+        """Send current command to the motor.
+        Args:
+            current (float): Current value in Amperes (-60A to 60A)
+        """
+        # Convert current to int32 (current * 1000)
+        current_int = int(current * 1000)
+
+        # Create command data
+        cmd_data = bytearray([0x06])  # Current command ID
+        cmd_data.extend(struct.pack('>i', current_int))
+
+        length = len(cmd_data)
+        crc = self.crc16(cmd_data)
+
+        packet = bytearray([0x02, length])
+        packet.extend(cmd_data)
+        packet.extend(struct.pack('>H', crc))
+        packet.append(0x03)
+
+        self.serial.write(packet)
+        time.sleep(0.01)
+
+    def send_brake_current_command(self, brake_current):
+        """Send brake current command to the motor.
+        Args:
+            brake_current (float): Brake current value in Amperes (0A to 60A)
+        """
+        # Convert brake current to int32 (brake_current * 1000)
+        brake_int = int(brake_current * 1000)
+
+        cmd_data = bytearray([0x07])  # Brake current command ID
+        cmd_data.extend(struct.pack('>i', brake_int))
+
+        length = len(cmd_data)
+        crc = self.crc16(cmd_data)
+
+        packet = bytearray([0x02, length])
+        packet.extend(cmd_data)
+        packet.extend(struct.pack('>H', crc))
+        packet.append(0x03)
+
+        self.serial.write(packet)
+        time.sleep(0.01)
+
+    def send_speed_command(self, speed):
+        """Send speed command to the motor.
+        Args:
+            speed (float): Speed in electrical RPM (-32000 to 32000)
+        """
+        # Convert speed to int32
+        speed_int = int(speed)
+
+        cmd_data = bytearray([0x08])  # Speed command ID
+        cmd_data.extend(struct.pack('>i', speed_int))
+
+        length = len(cmd_data)
+        crc = self.crc16(cmd_data)
+
+        packet = bytearray([0x02, length])
+        packet.extend(cmd_data)
+        packet.extend(struct.pack('>H', crc))
+        packet.append(0x03)
+
+        self.serial.write(packet)
+        time.sleep(0.01)
+
+    def set_origin(self, mode=0):
+        """Set the current position as origin.
+        Args:
+            mode (int): 0 for temporary origin, 1 for permanent zero point
+        """
+        cmd_data = bytearray([0x5F, mode])
+
+        length = len(cmd_data)
+        crc = self.crc16(cmd_data)
+
+        packet = bytearray([0x02, length])
+        packet.extend(cmd_data)
+        packet.extend(struct.pack('>H', crc))
+        packet.append(0x03)
+
+        self.serial.write(packet)
+        time.sleep(0.01)
+
+    def set_position_mode(self, mode):
+        """Set position control mode.
+        Args:
+            mode (str): 'single' for single-turn mode (0-360°) or 'multi' for multi-turn mode (±100 turns)
+        """
+        if mode.lower() == 'single':
+            cmd_data = bytearray([0x5D])  # Single turn mode
+        else:
+            cmd_data = bytearray([0x5C])  # Multi turn mode
+
+        length = len(cmd_data)
+        crc = self.crc16(cmd_data)
+
+        packet = bytearray([0x02, length])
+        packet.extend(cmd_data)
+        packet.extend(struct.pack('>H', crc))
+        packet.append(0x03)
+
+        self.serial.write(packet)
+        time.sleep(0.01)
+
+    def send_position_speed_command(self, position, speed, acceleration):
+        """Send position-speed command to the motor.
+        Args:
+            position (float): Target position in degrees
+            speed (float): Maximum speed in ERPM
+            acceleration (float): Acceleration in ERPM/s
+        """
+        # Convert values to appropriate formats
+        pos_int = int(position * 1000)
+        spd_int = int(speed)
+        acc_int = int(acceleration)
+
+        cmd_data = bytearray([0x5B])  # Position-speed command ID
+        cmd_data.extend(struct.pack('>i', pos_int))  # Position data
+        cmd_data.extend(struct.pack('>i', spd_int))  # Speed data
+        cmd_data.extend(struct.pack('>i', acc_int))  # Acceleration data
+
+        length = len(cmd_data)
+        crc = self.crc16(cmd_data)
+
+        packet = bytearray([0x02, length])
+        packet.extend(cmd_data)
+        packet.extend(struct.pack('>H', crc))
+        packet.append(0x03)
+
+        self.serial.write(packet)
+        time.sleep(0.01)
+
 def main():
     try:
         # Create motor instance with correct COM port and baud rate
         motor = AKServoMotor("COM10", 921600)
         print("Connected to motor successfully")
 
-        # Example usage: Move to different positions and read status
-        test_positions = [0, 9000, 18000, 9000, 0]  # Test positions in degrees
+        # Example usage of different control modes
+        while True:
+            print("\nAvailable commands:")
+            print("1. Set duty cycle")
+            print("2. Set current")
+            print("3. Set brake current")
+            print("4. Set speed")
+            print("5. Set position")
+            print("6. Set origin")
+            print("7. Position-speed control")
+            print("8. Read motor status")
+            print("9. Exit")
 
-        for pos in test_positions:
-            print(f"\nMoving to position: {pos}°")
-            try:
+            choice = input("Enter command number: ")
+
+            if choice == '1':
+                duty = float(input("Enter duty cycle (-1.0 to 1.0): "))
+                motor.send_duty_cycle_command(duty)
+                time.sleep(1)
+
+            elif choice == '2':
+                current = float(input("Enter current (-60A to 60A): "))
+                motor.send_current_command(current)
+
+            elif choice == '3':
+                brake = float(input("Enter brake current (0A to 60A): "))
+                motor.send_brake_current_command(brake)
+
+            elif choice == '4':
+                speed = float(input("Enter speed (-32000 to 32000 ERPM): "))
+                motor.send_speed_command(speed)
+                time.sleep(2)
+
+            elif choice == '5':
+                mode = input("Enter mode (single/multi): ")
+                motor.set_position_mode(mode)
+                pos = float(input("Enter position (degrees): "))
                 motor.send_position_command(pos)
-                time.sleep(0.5)  # Wait for movement
+                time.sleep(3)
 
-                # Read and display motor status
+            elif choice == '6':
+                mode = int(input("Enter origin mode (0=temporary, 1=permanent): "))
+                motor.set_origin(mode)
+
+            elif choice == '7':
+                pos = float(input("Enter position (degrees): "))
+                speed = float(input("Enter speed (ERPM): "))
+                acc = float(input("Enter acceleration (ERPM/s): "))
+                motor.send_position_speed_command(pos, speed, acc)
+                time.sleep(5)
+
+            elif choice == '8':
                 status = motor.read_motor_status()
                 if status:
                     print("\nMotor Status:")
-                    print(f"Position: {status['position']}°")
-                    print(f"Speed: {status['speed']} ERPM")
+                    print(f"MOS Temperature: {status['mos_temp']}°C")
                     print(f"Motor Temperature: {status['motor_temp']}°C")
                     print(f"Current Out: {status['current_out']}A")
-                    print(f"MOS Temperature: {status['mos_temp']}°C")
-                else:
-                    print("Failed to read motor status")
-
-                time.sleep(0.5)
-
-            except Exception as e:
-                print(f"Error during movement: {e}")
+                    print(f"Current In: {status['current_in']}A")
+                    print(f"Id Current: {status['id_current']}A")
+                    print(f"Iq Current: {status['iq_current']}A")
+                    print(f"Throttle: {status['throttle']}")
+                    print(f"Speed: {status['speed']} ERPM")
+                    print(f"Input Voltage: {status['voltage_in']}V")
+                    print(f"Motor Status: {status['motor_status']}")
+                    print(f"Position: {status['position']}°")
+                    print(f"Motor ID: {status['motor_id']}")
+                    print(f"Reserved Temp: {status['reserved_temp']}")
+                    print(f"Vd Voltage: {status['vd_voltage']}V")
+                    print(f"Vq Voltage: {status['vq_voltage']}V")
+            elif choice == '9':
                 break
 
+            else:
+                print("Invalid command number")
+
     except Exception as e:
-        print(f"Error initializing motor: {e}")
+        print(f"Error: {e}")
     finally:
-        try:
-            motor.close()
-        except:
-            pass
+        motor.close()
 
 if __name__ == "__main__":
     main()
