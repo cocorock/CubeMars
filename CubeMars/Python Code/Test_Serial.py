@@ -1,6 +1,7 @@
 import serial
 import struct
 import time
+# Send status over CAN, HAS TO BE DISABLE (TAB Application Functions in Cubemars Software)
 
 class AKServoMotor:
     def __init__(self, port="COM10", baudrate=921600):
@@ -154,7 +155,7 @@ class AKServoMotor:
         except Exception as e:
             print(f"\tError parsing status response: {e}")
             print(f"Raw data length: {len(data)}")
-            print(f"Raw data: {data.hex()}")
+            print(f"Raw data: 0x{data.hex()}")
             return None
 
     def crc16(self, data):
@@ -208,10 +209,10 @@ class AKServoMotor:
     def send_duty_cycle_command(self, duty_cycle):
         """Send duty cycle command to the motor.
         Args:
-            duty_cycle (float): Duty cycle value (-1.0 to 1.0)
+            duty_cycle (float): Duty cycle value (o )
         """
         # Convert duty cycle to int32 (duty_cycle * 10000)
-        duty_int = int(duty_cycle * 10000)
+        duty_int = int(duty_cycle * 100080)
 
         # Create command data
         cmd_data = bytearray([0x05])  # Duty cycle command ID
@@ -388,10 +389,9 @@ def main():
             choice = input("Enter command number: ")
 
             if choice == '1':
-                duty = float(input("Enter duty cycle (-1.0 to 1.0): "))
+                duty = float(input("Enter duty cycle ( to ): "))
                 motor.send_duty_cycle_command(duty)
-                time.sleep(1)
-
+                
             elif choice == '2':
                 current = float(input("Enter current (-60A to 60A): "))
                 motor.send_current_command(current)
@@ -403,14 +403,13 @@ def main():
             elif choice == '4':
                 speed = float(input("Enter speed (-32000 to 32000 ERPM): "))
                 motor.send_speed_command(speed)
-                time.sleep(2)
 
             elif choice == '5':
                 mode = input("Enter mode (single/multi): ")
                 motor.set_position_mode(mode)
                 pos = float(input("Enter position (degrees): "))
                 motor.send_position_command(pos)
-                time.sleep(3)
+                
 
             elif choice == '6':
                 mode = int(input("Enter origin mode (0=temporary, 1=permanent): "))
@@ -421,27 +420,26 @@ def main():
                 speed = float(input("Enter speed (ERPM): "))
                 acc = float(input("Enter acceleration (ERPM/s): "))
                 motor.send_position_speed_command(pos, speed, acc)
-                time.sleep(5)
 
             elif choice == '8':
                 status = motor.read_motor_status()
                 if status:
                     print("\nMotor Status:")
-                    print(f"MOS Temperature: {status['mos_temp']}°C")
-                    print(f"Motor Temperature: {status['motor_temp']}°C")
+                    print(f"\tMOS Temperature: {status['mos_temp']}°C")
+                    print(f"\tMotor Temperature: {status['motor_temp']}°C")
                     print(f"Current Out: {status['current_out']}A")
                     print(f"Current In: {status['current_in']}A")
-                    print(f"Id Current: {status['id_current']}A")
-                    print(f"Iq Current: {status['iq_current']}A")
+                    print(f"\tId Current: {status['id_current']}A")
+                    print(f"\tIq Current: {status['iq_current']}A")
                     print(f"Throttle: {status['throttle']}")
                     print(f"Speed: {status['speed']} ERPM")
-                    print(f"Input Voltage: {status['voltage_in']}V")
+                    print(f"\tInput Voltage: {status['voltage_in']}V")
                     print(f"Motor Status: {status['motor_status']}")
-                    print(f"Position: {status['position']}°")
+                    print(f"\tPosition: {status['position']}°")
                     print(f"Motor ID: {status['motor_id']}")
                     print(f"Reserved Temp: {status['reserved_temp']}")
-                    print(f"Vd Voltage: {status['vd_voltage']}V")
-                    print(f"Vq Voltage: {status['vq_voltage']}V")
+                    print(f"\tVd Voltage: {status['vd_voltage']}V")
+                    print(f"\tVq Voltage: {status['vq_voltage']}V")
             elif choice == '9':
                 break
 
