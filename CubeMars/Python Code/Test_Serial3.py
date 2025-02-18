@@ -2,6 +2,7 @@ import serial
 import struct
 import time
 import msvcrt
+
 # Send status over CAN, HAS TO BE DISABLE (TAB Application Functions in Cubemars Software)
 
 class AKServoMotor:
@@ -375,7 +376,34 @@ def main():
         print("Connected to motor successfully")
 
         periodic_active = False
-        delay_time = 0.1  # Default delay time in seconds
+        delay_time = 0.5  # Default delay time in seconds (2 Hz)
+        last_command_time = 0
+        current_command = None
+        command_params = None
+
+        def execute_periodic_command():
+            if not periodic_active or not current_command:
+                return
+
+            nonlocal last_command_time
+            current_time = time.time()
+
+            if current_time - last_command_time >= delay_time:
+                if current_command == "duty":
+                    motor.send_duty_cycle_command(command_params)
+                elif current_command == "current":
+                    motor.send_current_command(command_params)
+                elif current_command == "brake":
+                    motor.send_brake_current_command(command_params)
+                elif current_command == "speed":
+                    motor.send_speed_command(command_params)
+                elif current_command == "position":
+                    motor.send_position_command(command_params)
+                elif current_command == "position_speed":
+                    pos, speed, acc = command_params
+                    motor.send_position_speed_command(pos, speed, acc)
+
+                last_command_time = current_time
 
         # Example usage of different control modes
         while True:
@@ -385,31 +413,38 @@ def main():
             print("3. Set brake current") 
             print("4. Set speed")
             print("5. Set position")
-            print("6. Set origin")
+            print("6. Set origin (one-shot)")
             print("7. Position-speed control")
-            print("8. Read motor status")
+            print("8. Read motor status (one-shot)")
             print("9. Stop periodic command")
-            print("10. Exit")
+            print("10. Set comm frequency")
+            print("11. Exit")
 
             choice = input("Enter command number: ")
 
-            if periodic_active and choice != '9':
+            execute_periodic_command()
+
+            if msvcrt.kbhit():
+                key = msvcrt.getch()
+                if key == b'\x1b':
+                    periodic_active = False
+                    current_command = None
+                    command_params = None
+                    print("\nStopped periodic command")
+                    continue
+
+            if periodic_active and choice not in ['8', '9']:
                 print("Periodic command is running. Stop it first (option 9)")
                 continue
 
             if choice == '1':
-                duty = float(input("Enter duty cycle ( to ): "))
+                duty = float(input("Enter duty cycle (0 to 1): "))
                 periodic = input("Periodic command? (y/n): ").lower() == 'y'
                 if periodic:
-                    delay_time = float(input("Enter delay time (seconds): "))
                     periodic_active = True
+                    current_command = "duty"
+                    command_params = duty
                     print("Press ESC to stop")
-                    while periodic_active:
-                        motor.send_duty_cycle_command(duty)
-                        time.sleep(delay_time)
-                        if msvcrt.kbhit() and msvcrt.getch() == b'\x1b':
-                            periodic_active = False
-                            print("\nStopped periodic command")
                 else:
                     motor.send_duty_cycle_command(duty)
                 
@@ -417,15 +452,10 @@ def main():
                 current = float(input("Enter current (-60A to 60A): "))
                 periodic = input("Periodic command? (y/n): ").lower() == 'y'
                 if periodic:
-                    delay_time = float(input("Enter delay time (seconds): "))
                     periodic_active = True
+                    current_command = "current"
+                    command_params = current
                     print("Press ESC to stop")
-                    while periodic_active:
-                        motor.send_current_command(current)
-                        time.sleep(delay_time)
-                        if msvcrt.kbhit() and msvcrt.getch() == b'\x1b':
-                            periodic_active = False
-                            print("\nStopped periodic command")
                 else:
                     motor.send_current_command(current)
 
@@ -433,15 +463,10 @@ def main():
                 brake = float(input("Enter brake current (0A to 60A): "))
                 periodic = input("Periodic command? (y/n): ").lower() == 'y'
                 if periodic:
-                    delay_time = float(input("Enter delay time (seconds): "))
                     periodic_active = True
+                    current_command = "brake"
+                    command_params = brake
                     print("Press ESC to stop")
-                    while periodic_active:
-                        motor.send_brake_current_command(brake)
-                        time.sleep(delay_time)
-                        if msvcrt.kbhit() and msvcrt.getch() == b'\x1b':
-                            periodic_active = False
-                            print("\nStopped periodic command")
                 else:
                     motor.send_brake_current_command(brake)
 
@@ -449,15 +474,10 @@ def main():
                 speed = float(input("Enter speed (-32000 to 32000 ERPM): "))
                 periodic = input("Periodic command? (y/n): ").lower() == 'y'
                 if periodic:
-                    delay_time = float(input("Enter delay time (seconds): "))
                     periodic_active = True
+                    current_command = "speed"
+                    command_params = speed
                     print("Press ESC to stop")
-                    while periodic_active:
-                        motor.send_speed_command(speed)
-                        time.sleep(delay_time)
-                        if msvcrt.kbhit() and msvcrt.getch() == b'\x1b':
-                            periodic_active = False
-                            print("\nStopped periodic command")
                 else:
                     motor.send_speed_command(speed)
 
@@ -467,15 +487,10 @@ def main():
                 pos = float(input("Enter position (degrees): "))
                 periodic = input("Periodic command? (y/n): ").lower() == 'y'
                 if periodic:
-                    delay_time = float(input("Enter delay time (seconds): "))
                     periodic_active = True
+                    current_command = "position"
+                    command_params = pos
                     print("Press ESC to stop")
-                    while periodic_active:
-                        motor.send_position_command(pos)
-                        time.sleep(delay_time)
-                        if msvcrt.kbhit() and msvcrt.getch() == b'\x1b':
-                            periodic_active = False
-                            print("\nStopped periodic command")
                 else:
                     motor.send_position_command(pos)
 
@@ -489,15 +504,10 @@ def main():
                 acc = float(input("Enter acceleration (ERPM/s): "))
                 periodic = input("Periodic command? (y/n): ").lower() == 'y'
                 if periodic:
-                    delay_time = float(input("Enter delay time (seconds): "))
                     periodic_active = True
+                    current_command = "position_speed"
+                    command_params = (pos, speed, acc)
                     print("Press ESC to stop")
-                    while periodic_active:
-                        motor.send_position_speed_command(pos, speed, acc)
-                        time.sleep(delay_time)
-                        if msvcrt.kbhit() and msvcrt.getch() == b'\x1b':
-                            periodic_active = False
-                            print("\nStopped periodic command")
                 else:
                     motor.send_position_speed_command(pos, speed, acc)
 
@@ -526,6 +536,14 @@ def main():
                 print("Stopped periodic command")
 
             elif choice == '10':
+                freq = float(input("Enter frequency (Hz, min 2): "))
+                if freq < 2:
+                    print("Frequency must be at least 2 Hz")
+                    continue
+                delay_time = 1.0 / freq
+                print(f"Communication frequency set to {freq} Hz")
+
+            elif choice == '11':
                 break
 
             else:
