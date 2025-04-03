@@ -168,7 +168,7 @@ def handle_menu_choice(channel, choice, controller_id=0xA, auto_values=None):
 
             # Continuously send position command until target is reached or timeout
             start_time = time.time()
-            timeout = 10.0  # 4 seconds timeout
+            timeout = 10.0  # 10 seconds timeout
             target_reached = False
             current_pos = None
 
