@@ -15,7 +15,7 @@ KD_MAX = 5.0
 T_MIN = -144.0
 T_MAX = 144.0
 
-CONTROLLER_ID = 0x17  # 23 in decimal
+CONTROLLER_ID = 0x8  # 8 in decimal
 
 class MotorState:
     def __init__(self):
